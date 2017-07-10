@@ -30,13 +30,17 @@ Auto-Remediation (直訳：自動修復)とは、その名の通り「障害が�
 ・Node hardware failures (e.g. triggering VM evacuation) (ノードの物理故障に伴なうVMの退避)
 ```
 
-また、Netflixでは実際にStackStormによるARを実現しており、[StackStormの公式ブログで紹介されています。](https://stackstorm.com/2015/11/21/netflix-stackstorm-based-auto-remediation-why-how-and-so-what/)
-
-StackStormでも[Auto-Remediation Defined](https://stackstorm.com/2015/08/07/auto-remediation-defined/)で触れられているように、ARを主要なユースケースの1つと位置付けているようです。
-
 さて、次章から上記のようなARを実現するためにStackStormをどう使っていくかについて解説したいと思います。
 
 ### StackStormによるARの実現
+#### ARの動作をシンプルに定義する
+StackStorm公式ブログで[Auto-Remediation Defined](https://stackstorm.com/2015/08/07/auto-remediation-defined/)として触れられているように、ARはStackStormの主要なユースケースの1つと位置付けています。
+
+また、Netflixでは実際にStackStormによるARを実現しており、[StackStormの公式ブログで紹介されています。](https://stackstorm.com/2015/11/21/netflix-stackstorm-based-auto-remediation-why-how-and-so-what/)
+
+上記のようにStackStormがAR基盤として使われるのは何故でしょうか。<br>
+それは、"Event-Driven Automation"という考え方と実装がARにマッチしているからです。
+
 ここで、StackStormの掲げる"Event-Driven Automation"という思想に則り、ARの動作を整理してみます。
 
 ![Event-Driven Remidiate](images/st2-ar.png)
@@ -47,7 +51,7 @@ StackStormでも[Auto-Remediation Defined](https://stackstorm.com/2015/08/07/aut
 | Monitor | Serverの状態を受け取り、任意のルールに従ってStackStormに通知する |
 | StackStorm | Monitorからの通知をイベントとし、所定の窓口へ通知する&対象のServerをRemidiateする |
 
-このように、非常に綺麗な構成でARの動作を定義することができます。
+このように、非常にシンプルな構成でARの動作を定義することができます。
 
 ZabbixやSensuなどの監視ツールはログの内容によって所定のスクリプトを実行する機能を備えていますが、StackStormという登場人物を増やすことによって
 * 監視と処理の責任主体が明確になる
@@ -55,6 +59,33 @@ ZabbixやSensuなどの監視ツールはログの内容によって所定のス
 * 有志が公開しているWorkflowなどを流用できる
 
 というメリットがあります。
+
+#### StackStormによるARの実装
+上記のARを実現するためには、
+* Monitorから通知を受けとること
+* 通知に従って対象機器を復旧すること
+
+の2つの機能がStackStorm上に必要です。それぞれどのように設定すればいいのかを確認していきます。
+
+まず、監視システムからの通知を受けとる部分は`rule`として定義されます。<br>
+外部からの通知を受け取る`rule`には大きく'Webhook rule'と'製品別 rule'の2種類があり、それぞれ使い分けることが重要です。
+
+Webhookは汎用的なruleであり、Zabbixやsensuなどの監視システムに「POSTリクエストを飛ばすカスタムスクリプト」を設定することで利用することができます。<br>
+EndpointやCriteria(Actionを起動する条件)などを柔軟に設定できるというメリットがありますが、上記のカスタムスクリプトを作り込まなければいけないというデメリットがあります。
+
+製品別に用意されたruleは、一般的にPackの形で提供されています。監視システムを例にすると[Sensu用のPack](https://github.com/StackStorm/st2contrib/tree/master/packs/sensu)などが提供されており、初めから機能と品質が担保されたruleを使えることがメリットです。<br>
+監視システムに対応したPackが存在する場合は、それを使って通知ルールを作成するのがよいでしょう。
+
+対象の機器を復旧する部分は`Workflow`として定義され、基本的には自分で作り込んでいく部分になります。<br>
+ActionやWorkflowの作成方法については[公式ドキュメント](https://docs.stackstorm.com/actions.html)や[公式のサンプルコード](https://github.com/StackStorm/st2/tree/master/contrib/examples)を参考にしてください。
+
+Workflowには大きく`ActionChain`と`Mistral`の2種類がありますが、それぞれ特徴があるので使い分けていきましょう。<br>
+ザックリと使い分けの基準を示すと、
+
+* Actionの成功/失敗のみの分岐でよい → ActionChain
+* ActionのForkやJoin、変数を条件とした分岐を実現したい → Mistral
+
+のようなイメージです。基本的にActionChainの方が安定して高速に動作し、記法も単純なので、最初はActionChainで書くのがオススメです。
 
 最後に、次節でOpenStack環境にどうやってARを適用していくかについて解説します。
 
