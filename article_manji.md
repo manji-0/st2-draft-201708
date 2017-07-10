@@ -26,7 +26,7 @@ Auto-Remediation (直訳：自動修復)とは、その名の通り「障害が�
 > ・Overflowed rabbitmq queues (RabbitMQのキュー溢れ)
 > ・Corrupted rabbitmq mnesia (RabbitMQのバックエンドDBの故障)
 > ・Broken database replication (DBレプリケーションの故障)
-> ・Node hardware failures (e.g. triggering VM evacuation) (ノードの物理故障に共なうVMの退避)
+> ・Node hardware failures (e.g. triggering VM evacuation) (ノードの物理故障に伴なうVMの退避)
 
 また、Netflixでは実際にStackStormによるARを実現しており、[StackStormの公式ブログで紹介されています。](https://stackstorm.com/2015/11/21/netflix-stackstorm-based-auto-remediation-why-how-and-so-what/)
 
